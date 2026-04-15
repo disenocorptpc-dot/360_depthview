@@ -139,8 +139,7 @@
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
-            // tone mapping for better colors
-            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            // Removido ToneMapping para no distorsionar colores de la foto
             container.appendChild(renderer.domElement);
 
             // Controles
@@ -149,13 +148,13 @@
             controls.enablePan = true;  // Habilitado para hacer traslación (Clic Derecho)
             // controls.rotateSpeed = -0.3; 
 
-            // Iluminación Atmosférica
-            // Reducimos la ambiental para que destaquen las sombras del relieve
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            // Iluminación
+            // Luz ambiental fuerte y neutral (para mantener colores 100% fieles)
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
             scene.add(ambientLight);
 
-            // Luz puntual dinámica que reaccionará en el entorno
-            pointLight = new THREE.PointLight(0x00d2ff, 1.2, 120);
+            // Luz puntual sutil y blanca (ya no azul) para dar pulso físico sin teñir la foto
+            pointLight = new THREE.PointLight(0xffffff, 0.2, 120);
             pointLight.position.set(0, 0, 0); 
             scene.add(pointLight);
 
@@ -349,8 +348,8 @@
             }
 
             if (pointLight) {
-                // Pulso sutil de luz
-                pointLight.intensity = 1.0 + Math.sin(time * 2.0) * 0.2;
+                // Pulso muy tenue (0.1 a 0.3 de intensidad) que no arruina los colores originales
+                pointLight.intensity = 0.2 + Math.sin(time * 2.0) * 0.1;
             }
 
             renderer.render(scene, camera);
