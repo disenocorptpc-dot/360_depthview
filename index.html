@@ -74,6 +74,7 @@
         let colorTexture = null;
         let depthTexture = null;
         let subdivisions = 256;
+        let particles, pointLight;
         
         // Variables para el paralaje automático con el mouse
         let mouseX = 0;
@@ -148,10 +149,18 @@
             controls.enablePan = true;  // Habilitado para hacer traslación (Clic Derecho)
             // controls.rotateSpeed = -0.3; 
 
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+            // Iluminación Atmosférica
+            // Reducimos la ambiental para que destaquen las sombras del relieve
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
             scene.add(ambientLight);
 
+            // Luz puntual dinámica que reaccionará en el entorno
+            pointLight = new THREE.PointLight(0x00d2ff, 1.2, 120);
+            pointLight.position.set(0, 0, 0); 
+            scene.add(pointLight);
+
             buildSphere();
+            createParticles();
 
             window.addEventListener('resize', onWindowResize, false);
             document.addEventListener('mousemove', onDocumentMouseMove, false);
@@ -162,6 +171,36 @@
             // Normalizar el mouse en rango de -1 a 1
             mouseX = (event.clientX - windowHalfX) / windowHalfX;
             mouseY = (event.clientY - windowHalfY) / windowHalfY;
+        }
+
+        function createParticles() {
+            const particleCount = 2000;
+            const geometry = new THREE.BufferGeometry();
+            const posArray = new Float32Array(particleCount * 3);
+
+            for(let i=0; i < particleCount * 3; i+=3) {
+                // Posicion random esférica (Radio 80)
+                const r = 80 * Math.cbrt(Math.random());
+                const theta = Math.random() * 2 * Math.PI;
+                const phi = Math.acos(2 * Math.random() - 1);
+                
+                posArray[i] = r * Math.sin(phi) * Math.cos(theta); // x
+                posArray[i+1] = r * Math.sin(phi) * Math.sin(theta); // y
+                posArray[i+2] = r * Math.cos(phi); // z
+            }
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            
+            const material = new THREE.PointsMaterial({
+                size: 0.15,
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.5,
+                blending: THREE.AdditiveBlending
+            });
+            
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
         }
 
         function buildSphere() {
@@ -285,18 +324,33 @@
             requestAnimationFrame(animate);
             controls.update();
 
-            // Parallax local continuo: mueve la cámara lévemente en los ejes X, Y de la vista
-            // usando la posición del mouse para simular movimiento de cabeza.
-            targetX = mouseX * 5.0; // max traslacion de 5 unidades
-            targetY = -mouseY * 5.0;
+            const time = Date.now() * 0.001;
+
+            // Parallax local continuo y Respiración
+            // El mouse define el centro del movimiento, y le sumamos una onda senoidal (respiración)
+            const breathX = Math.sin(time * 0.8) * 1.5;
+            const breathY = Math.cos(time * 0.6) * 1.5;
+
+            targetX = (mouseX * 8.0) + breathX; 
+            targetY = (-mouseY * 8.0) + breathY;
             
-            // Suavizamos el movimiento de la cámara
+            // Suavizamos el movimiento de la cámara/esfera
             const group = sphere; 
-            // Para no romper OrbitControls, movemos la esfera ligeramente en dirección opuesta (efecto equivalente a mover la cámara)
             if (group) {
-                // Lerp (suavizado)
                 group.position.x += (targetX - group.position.x) * 0.05;
                 group.position.y += (targetY - group.position.y) * 0.05;
+            }
+
+            // Animación del entorno
+            if (particles) {
+                // Rotación levitante del polvo
+                particles.rotation.y = time * 0.05;
+                particles.rotation.z = time * 0.02;
+            }
+
+            if (pointLight) {
+                // Pulso sutil de luz
+                pointLight.intensity = 1.0 + Math.sin(time * 2.0) * 0.2;
             }
 
             renderer.render(scene, camera);
