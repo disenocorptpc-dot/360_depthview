@@ -74,9 +74,17 @@
     <!-- Cargar Three.js localmente -->
     <script src="three.min.js"></script>
     <script src="OrbitControls.js"></script>
+    <!-- Librerías de Post-Procesamiento Cinemático -->
+    <script src="CopyShader.js"></script>
+    <script src="LuminosityHighPassShader.js"></script>
+    <script src="VignetteShader.js"></script>
+    <script src="EffectComposer.js"></script>
+    <script src="RenderPass.js"></script>
+    <script src="ShaderPass.js"></script>
+    <script src="UnrealBloomPass.js"></script>
 
     <script>
-        let scene, camera, renderer, controls, sphere, material;
+        let scene, camera, renderer, composer, controls, sphere, material;
         let colorTexture = null;
         let depthTexture = null;
         let normalTexture = null;
@@ -155,6 +163,56 @@
             renderer.setPixelRatio(window.devicePixelRatio);
             // Removido ToneMapping para no distorsionar colores de la foto
             container.appendChild(renderer.domElement);
+
+            // POST-PROCESAMIENTO CINEMÁTICO (PIPELINE)
+            composer = new THREE.EffectComposer(renderer);
+            const renderPass = new THREE.RenderPass(scene, camera);
+            composer.addPass(renderPass);
+
+            // 1. Efecto Bloom (Resplandor volumétrico)
+            const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+            bloomPass.threshold = 0.2; // Qué tanto debe brillar lo iluminado
+            bloomPass.strength = 1.2;  // Intensidad del destello
+            bloomPass.radius = 0.5;
+            composer.addPass(bloomPass);
+
+            // 2. Viñeteo (Oscurecer los márgenes)
+            const vignettePass = new THREE.ShaderPass(THREE.VignetteShader);
+            vignettePass.uniforms['offset'].value = 1.0;
+            vignettePass.uniforms['darkness'].value = 1.8;
+            composer.addPass(vignettePass);
+
+            // 3. Aberración Cromática (Reflejo de lente separando RGB en los bordes)
+            const ChromaticAberrationShader = {
+                uniforms: {
+                    'tDiffuse': { value: null },
+                    'amount': { value: 0.006 }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D tDiffuse;
+                    uniform float amount;
+                    varying vec2 vUv;
+                    void main() {
+                        // Aumenta la aberración conforme te alejas del centro de la pantalla
+                        float dist = distance(vUv, vec2(0.5));
+                        vec2 offset = vec2(amount * dist, 0.0); // Desplazamiento horizontal
+                        
+                        vec4 cr = texture2D(tDiffuse, vUv + offset);
+                        vec4 cg = texture2D(tDiffuse, vUv);
+                        vec4 cb = texture2D(tDiffuse, vUv - offset);
+                        gl_FragColor = vec4(cr.r, cg.g, cb.b, cg.a);
+                    }
+                `
+            };
+            const chromaPass = new THREE.ShaderPass(ChromaticAberrationShader);
+            composer.addPass(chromaPass);
 
             // Controles Cinematográficos (Suavizados para evitar mareos)
             controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -336,6 +394,7 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
         }
 
         function animate() {
@@ -364,7 +423,7 @@
                 pointLight.intensity = 0.4 + Math.sin(time * 1.5) * 0.1;
             }
 
-            renderer.render(scene, camera);
+            composer.render();
         }
     </script>
 </body>
