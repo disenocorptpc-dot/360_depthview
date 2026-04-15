@@ -112,7 +112,10 @@
             ctx.textAlign = 'center';
             ctx.fillText("CARGA UNA FOTO 360", 1024, 512);
 
-            return new THREE.CanvasTexture(canvas);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.repeat.x = -1;
+            return tex;
         }
 
         function createProceduralDepth() {
@@ -131,7 +134,10 @@
                 }
             }
             
-            return new THREE.CanvasTexture(canvas);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.repeat.x = -1;
+            return tex;
         }
 
         function init() {
@@ -224,7 +230,8 @@
                     reader.onload = (re) => {
                         const loader = new THREE.TextureLoader();
                         loader.load(re.target.result, (texture) => {
-                            texture.wrapS = THREE.ClampToEdgeWrapping;
+                            texture.wrapS = THREE.RepeatWrapping;
+                            texture.repeat.x = -1; // Voltea la imagen horizontalmente
                             texture.wrapT = THREE.ClampToEdgeWrapping;
                             texture.minFilter = THREE.LinearFilter;
                             colorTexture = texture;
@@ -243,7 +250,8 @@
                     reader.onload = (re) => {
                         const loader = new THREE.TextureLoader();
                         loader.load(re.target.result, (texture) => {
-                            texture.wrapS = THREE.ClampToEdgeWrapping;
+                            texture.wrapS = THREE.RepeatWrapping;
+                            texture.repeat.x = -1;
                             texture.wrapT = THREE.ClampToEdgeWrapping;
                             texture.minFilter = THREE.LinearFilter;
                             depthTexture = texture;
@@ -262,13 +270,15 @@
                     reader.onload = (re) => {
                         const loader = new THREE.TextureLoader();
                         loader.load(re.target.result, (texture) => {
-                            texture.wrapS = THREE.ClampToEdgeWrapping;
+                            texture.wrapS = THREE.RepeatWrapping;
+                            texture.repeat.x = -1;
                             texture.wrapT = THREE.ClampToEdgeWrapping;
                             texture.minFilter = THREE.LinearFilter;
                             normalTexture = texture;
                             if(material) {
                                 material.normalMap = normalTexture;
-                                material.normalScale = new THREE.Vector2(-1, -1);
+                                // Invertimos también el cálculo de normales en X
+                                material.normalScale = new THREE.Vector2(1, -1);
                                 material.needsUpdate = true;
                             }
                         });
