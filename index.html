@@ -156,11 +156,14 @@
             // Removido ToneMapping para no distorsionar colores de la foto
             container.appendChild(renderer.domElement);
 
-            // Controles
+            // Controles Cinematográficos (Suavizados para evitar mareos)
             controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableZoom = true; // Habilitado para que puedas acercarte a la pared
-            controls.enablePan = true;  // Habilitado para hacer traslación (Clic Derecho)
-            // controls.rotateSpeed = -0.3; 
+            controls.enableDamping = true; // Inercia súper suave al soltar el mouse
+            controls.dampingFactor = 0.05;
+            controls.enableZoom = true;
+            controls.enablePan = true;
+            controls.autoRotate = true; // Rotación automática levitante
+            controls.autoRotateSpeed = 0.3; // Súper lento
 
             // Iluminación
             // Luz ambiental reducida ligeramente para dar paso a los sombreados del normal map
@@ -337,23 +340,23 @@
 
         function animate() {
             requestAnimationFrame(animate);
+            // Controles actualiza la rotación automática y la inercia
             controls.update();
 
             const time = Date.now() * 0.001;
 
-            // Parallax local continuo y Respiración
-            // El mouse define el centro del movimiento, y le sumamos una onda senoidal (respiración)
-            const breathX = Math.sin(time * 0.8) * 1.5;
-            const breathY = Math.cos(time * 0.6) * 1.5;
+            // Parallax suavizado (reduciendo los multiplicadores para quitar el mareo)
+            const breathX = Math.sin(time * 0.5) * 0.5; // Movimiento menos exagerado
+            const breathY = Math.cos(time * 0.4) * 0.5;
 
-            targetX = (mouseX * 8.0) + breathX; 
-            targetY = (-mouseY * 8.0) + breathY;
+            targetX = (mouseX * 2.5) + breathX; // Bajamos el tope de traslación
+            targetY = (-mouseY * 2.5) + breathY;
             
-            // Suavizamos el movimiento de la cámara/esfera
+            // Lerp (Suavizado extremo para que no haya brincos)
             const group = sphere; 
             if (group) {
-                group.position.x += (targetX - group.position.x) * 0.05;
-                group.position.y += (targetY - group.position.y) * 0.05;
+                group.position.x += (targetX - group.position.x) * 0.02; // Aún más progresivo
+                group.position.y += (targetY - group.position.y) * 0.02;
             }
 
             if (pointLight) {
