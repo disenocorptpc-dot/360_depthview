@@ -65,8 +65,31 @@
             <span class="help-text">Mayor subdivisión = más detalle de relieve, pero consume más rendimiento.</span>
         </div>
 
-        <button id="btn-fullscreen" style="background:linear-gradient(90deg, #00d2ff, #3a7bd5); color:#fff; border:none; padding:12px; width:100%; border-radius:8px; font-weight:600; cursor:pointer; margin-top:5px; transition: transform 0.2s;">🔍 Pantalla Completa</button>
-        <button id="btn-hide-ui" style="background:rgba(255,255,255,0.1); color:#ccc; border:1px solid rgba(255,255,255,0.2); padding:10px; width:100%; border-radius:8px; font-weight:500; cursor:pointer; margin-top:10px;">👻 Ocultar Panel (Presiona ESC para volver)</button>
+        <h2 style="margin: 20px 0 10px 0; font-size: 1rem; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px; color:#00d2ff;">Efectos Visuales</h2>
+
+        <div class="control-group">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="toggle-bloom" checked> Resplandor (Bloom)
+            </label>
+            <input type="range" id="slider-bloom" min="0" max="3" step="0.1" value="1.2">
+        </div>
+
+        <div class="control-group">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="toggle-vignette" checked> Viñeteo (Bordes)
+            </label>
+            <input type="range" id="slider-vignette" min="0" max="5" step="0.1" value="1.8">
+        </div>
+
+        <div class="control-group">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="toggle-chroma" checked> Lente RGB (Aberración)
+            </label>
+            <input type="range" id="slider-chroma" min="0" max="0.02" step="0.001" value="0.006">
+        </div>
+
+        <button id="btn-fullscreen" style="background:linear-gradient(90deg, #00d2ff, #3a7bd5); color:#fff; border:none; padding:12px; width:100%; border-radius:8px; font-weight:600; cursor:pointer; margin-top:15px; transition: transform 0.2s;">🔍 Pantalla Completa</button>
+        <button id="btn-hide-ui" style="background:rgba(255,255,255,0.1); color:#ccc; border:1px solid rgba(255,255,255,0.2); padding:10px; width:100%; border-radius:8px; font-weight:500; cursor:pointer; margin-top:8px;">👻 Ocultar Panel (ESC para volver)</button>
     </div>
     
     <div id="canvas-container"></div>
@@ -85,6 +108,7 @@
 
     <script>
         let scene, camera, renderer, composer, controls, sphere, material;
+        let bloomPass, vignettePass, chromaPass;
         let colorTexture = null;
         let depthTexture = null;
         let normalTexture = null;
@@ -170,14 +194,14 @@
             composer.addPass(renderPass);
 
             // 1. Efecto Bloom (Resplandor volumétrico)
-            const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+            bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
             bloomPass.threshold = 0.2; // Qué tanto debe brillar lo iluminado
             bloomPass.strength = 1.2;  // Intensidad del destello
             bloomPass.radius = 0.5;
             composer.addPass(bloomPass);
 
             // 2. Viñeteo (Oscurecer los márgenes)
-            const vignettePass = new THREE.ShaderPass(THREE.VignetteShader);
+            vignettePass = new THREE.ShaderPass(THREE.VignetteShader);
             vignettePass.uniforms['offset'].value = 1.0;
             vignettePass.uniforms['darkness'].value = 1.8;
             composer.addPass(vignettePass);
@@ -211,7 +235,7 @@
                     }
                 `
             };
-            const chromaPass = new THREE.ShaderPass(ChromaticAberrationShader);
+            chromaPass = new THREE.ShaderPass(ChromaticAberrationShader);
             composer.addPass(chromaPass);
 
             // Controles Cinematográficos (Suavizados para evitar mareos)
@@ -365,6 +389,23 @@
             subdivSlider.addEventListener('input', (e) => {
                 document.getElementById('subdiv-val').innerText = e.target.value;
             });
+
+            // Controles de Post-Procesamiento (Toggle y Dimmers)
+            const toggleBloom = document.getElementById('toggle-bloom');
+            const sliderBloom = document.getElementById('slider-bloom');
+            const toggleVig = document.getElementById('toggle-vignette');
+            const sliderVig = document.getElementById('slider-vignette');
+            const toggleChroma = document.getElementById('toggle-chroma');
+            const sliderChroma = document.getElementById('slider-chroma');
+
+            toggleBloom.addEventListener('change', (e) => { bloomPass.enabled = e.target.checked; });
+            sliderBloom.addEventListener('input', (e) => { bloomPass.strength = parseFloat(e.target.value); });
+
+            toggleVig.addEventListener('change', (e) => { vignettePass.enabled = e.target.checked; });
+            sliderVig.addEventListener('input', (e) => { vignettePass.uniforms['darkness'].value = parseFloat(e.target.value); });
+
+            toggleChroma.addEventListener('change', (e) => { chromaPass.enabled = e.target.checked; });
+            sliderChroma.addEventListener('input', (e) => { chromaPass.uniforms['amount'].value = parseFloat(e.target.value); });
 
             // UI Toggles
             document.getElementById('btn-hide-ui').addEventListener('click', () => {
