@@ -43,9 +43,15 @@
         </div>
 
         <div class="control-group">
-            <label>2. Mapa de Profundidad:</label>
+            <label>2. Mapa de Profundidad (Volume 3D):</label>
             <input type="file" id="upload-depth" accept="image/*">
             <span class="help-text">Grayscale (blanco es más cerca, negro es más lejos)</span>
+        </div>
+
+        <div class="control-group">
+            <label>3. Mapa de Normales (Iluminación):</label>
+            <input type="file" id="upload-normal" accept="image/*">
+            <span class="help-text">Textura morada (RGB) para microrrelieve y reflejos dinámicos de luz</span>
         </div>
 
         <div class="control-group">
@@ -73,8 +79,9 @@
         let scene, camera, renderer, controls, sphere, material;
         let colorTexture = null;
         let depthTexture = null;
+        let normalTexture = null;
         let subdivisions = 256;
-        let particles, pointLight;
+        let pointLight;
         
         // Variables para el paralaje automático con el mouse
         let mouseX = 0;
@@ -135,6 +142,7 @@
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 0, 0.1); 
+            scene.add(camera); // Necesario para anclarle una luz
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -149,17 +157,16 @@
             // controls.rotateSpeed = -0.3; 
 
             // Iluminación
-            // Luz ambiental fuerte y neutral (para mantener colores 100% fieles)
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+            // Luz ambiental reducida ligeramente para dar paso a los sombreados del normal map
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
 
-            // Luz puntual sutil y blanca (ya no azul) para dar pulso físico sin teñir la foto
-            pointLight = new THREE.PointLight(0xffffff, 0.2, 120);
-            pointLight.position.set(0, 0, 0); 
-            scene.add(pointLight);
+            // "Linterna Focal": Luz direccional/puntual unida directamente a la cámara 
+            // que brillará sobre la textura, revelando mágicamente el Normal Map por donde mires
+            pointLight = new THREE.PointLight(0xffffff, 0.4, 250);
+            camera.add(pointLight); 
 
             buildSphere();
-            createParticles();
 
             window.addEventListener('resize', onWindowResize, false);
             document.addEventListener('mousemove', onDocumentMouseMove, false);
@@ -170,36 +177,6 @@
             // Normalizar el mouse en rango de -1 a 1
             mouseX = (event.clientX - windowHalfX) / windowHalfX;
             mouseY = (event.clientY - windowHalfY) / windowHalfY;
-        }
-
-        function createParticles() {
-            const particleCount = 2000;
-            const geometry = new THREE.BufferGeometry();
-            const posArray = new Float32Array(particleCount * 3);
-
-            for(let i=0; i < particleCount * 3; i+=3) {
-                // Posicion random esférica (Radio 80)
-                const r = 80 * Math.cbrt(Math.random());
-                const theta = Math.random() * 2 * Math.PI;
-                const phi = Math.acos(2 * Math.random() - 1);
-                
-                posArray[i] = r * Math.sin(phi) * Math.cos(theta); // x
-                posArray[i+1] = r * Math.sin(phi) * Math.sin(theta); // y
-                posArray[i+2] = r * Math.cos(phi); // z
-            }
-            
-            geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-            
-            const material = new THREE.PointsMaterial({
-                size: 0.15,
-                color: 0xffffff,
-                transparent: true,
-                opacity: 0.5,
-                blending: THREE.AdditiveBlending
-            });
-            
-            particles = new THREE.Points(geometry, material);
-            scene.add(particles);
         }
 
         function buildSphere() {
@@ -223,6 +200,12 @@
             if(depthTexture) material.displacementMap = depthTexture;
             else material.displacementMap = createProceduralDepth();
 
+            if(normalTexture) {
+                material.normalMap = normalTexture;
+                // La esfera está volteada (BackSide), esto invierte los canales del normal map adecuadamente
+                material.normalScale = new THREE.Vector2(-1, -1);
+            }
+
             sphere = new THREE.Mesh(geometry, material);
             scene.add(sphere);
         }
@@ -230,6 +213,7 @@
         function setupUI() {
             const uploadColor = document.getElementById('upload-color');
             const uploadDepth = document.getElementById('upload-depth');
+            const uploadNormal = document.getElementById('upload-normal');
             const dispScale = document.getElementById('displacement-scale');
             const subdivSlider = document.getElementById('subdivision-slider');
             
@@ -265,6 +249,28 @@
                             depthTexture = texture;
                             material.displacementMap = depthTexture;
                             material.needsUpdate = true;
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            uploadNormal.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if(file) {
+                    const reader = new FileReader();
+                    reader.onload = (re) => {
+                        const loader = new THREE.TextureLoader();
+                        loader.load(re.target.result, (texture) => {
+                            texture.wrapS = THREE.ClampToEdgeWrapping;
+                            texture.wrapT = THREE.ClampToEdgeWrapping;
+                            texture.minFilter = THREE.LinearFilter;
+                            normalTexture = texture;
+                            if(material) {
+                                material.normalMap = normalTexture;
+                                material.normalScale = new THREE.Vector2(-1, -1);
+                                material.needsUpdate = true;
+                            }
                         });
                     };
                     reader.readAsDataURL(file);
@@ -340,16 +346,9 @@
                 group.position.y += (targetY - group.position.y) * 0.05;
             }
 
-            // Animación del entorno
-            if (particles) {
-                // Rotación levitante del polvo
-                particles.rotation.y = time * 0.05;
-                particles.rotation.z = time * 0.02;
-            }
-
             if (pointLight) {
-                // Pulso muy tenue (0.1 a 0.3 de intensidad) que no arruina los colores originales
-                pointLight.intensity = 0.2 + Math.sin(time * 2.0) * 0.1;
+                // Pulso muy tenue (0.3 a 0.5 de intensidad)
+                pointLight.intensity = 0.4 + Math.sin(time * 1.5) * 0.1;
             }
 
             renderer.render(scene, camera);
